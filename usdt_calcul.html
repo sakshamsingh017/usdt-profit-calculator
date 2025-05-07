@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>USDT Profit Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background-color: #f0f4f8;
+    }
+    h1 {
+      color: #333;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px 0;
+      font-size: 16px;
+      width: 100%;
+    }
+    .result {
+      margin-top: 20px;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    button.download {
+      background-color: #4CAF50;
+      color: white;
+      margin-top: 10px;
+    }
+    .mediator {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .mediator input {
+      width: 48%;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>USDT Profit Calculator</h1>
+
+  <label>Buy Price (₹):</label>
+  <input type="number" id="buyPrice" placeholder="Enter buy price">
+
+  <label>Sell Price (₹):</label>
+  <input type="number" id="sellPrice" placeholder="Enter sell price">
+
+  <label>Total Investment (₹):</label>
+  <input type="number" id="investment" placeholder="Enter total investment">
+
+  <h3>Mediators</h3>
+  <div id="mediatorContainer"></div>
+  <button onclick="addMediator()">Add Mediator</button>
+
+  <button onclick="calculateProfit()">Calculate Profit</button>
+
+  <div class="result" id="result"></div>
+  <button class="download" onclick="downloadCSV()">Download Result as CSV</button>
+
+  <script>
+    let latestData = {};
+
+    function addMediator() {
+      const container = document.getElementById('mediatorContainer');
+      const div = document.createElement('div');
+      div.className = 'mediator';
+      div.innerHTML = `
+        <input type="text" placeholder="Mediator Name">
+        <input type="number" placeholder="₹ per USDT">
+      `;
+      container.appendChild(div);
+    }
+
+    function calculateProfit() {
+      const buy = parseFloat(document.getElementById('buyPrice').value);
+      const sell = parseFloat(document.getElementById('sellPrice').value);
+      const investment = parseFloat(document.getElementById('investment').value);
+
+      if (!buy || !sell || !investment) {
+        alert("Please fill in all fields.");
+        return;
+      }
+
+      const usdtQty = investment / buy;
+      const profitPerUnit = sell - buy;
+      let totalProfit = usdtQty * profitPerUnit;
+      const roi = (totalProfit / investment) * 100;
+
+      const mediatorElements = document.querySelectorAll('#mediatorContainer .mediator');
+      let mediatorData = [];
+      let totalMediatorCut = 0;
+
+      mediatorElements.forEach(el => {
+        const name = el.children[0].value || 'Unnamed';
+        const cut = parseFloat(el.children[1].value) || 0;
+        const amount = cut * usdtQty;
+        totalMediatorCut += amount;
+        mediatorData.push({ name, cut, amount });
+      });
+
+      const userProfit = totalProfit - totalMediatorCut;
+
+      let tableHTML = `
+        <table>
+          <tr><th>Metric</th><th>Value</th></tr>
+          <tr><td>Buy Price</td><td>₹${buy.toFixed(2)}</td></tr>
+          <tr><td>Sell Price</td><td>₹${sell.toFixed(2)}</td></tr>
+          <tr><td>Total Investment</td><td>₹${investment.toLocaleString()}</td></tr>
+          <tr><td>USDT Bought</td><td>${usdtQty.toFixed(2)}</td></tr>
+          <tr><td>Profit per USDT</td><td>₹${profitPerUnit.toFixed(2)}</td></tr>
+          <tr><td>Total Profit</td><td>₹${totalProfit.toLocaleString()}</td></tr>
+          <tr><td>Profit % (ROI)</td><td>${roi.toFixed(2)}%</td></tr>
+        </table>
+      `;
+
+      if (mediatorData.length > 0) {
+        tableHTML += `<h3>Mediator Breakdown</h3><table><tr><th>Mediator</th><th>Per USDT (₹)</th><th>Share (₹)</th></tr>`;
+        mediatorData.forEach(m => {
+          tableHTML += `<tr><td>${m.name}</td><td>₹${m.cut.toFixed(2)}</td><td>₹${m.amount.toFixed(2)}</td></tr>`;
+        });
+        tableHTML += `<tr><td><strong>Your Profit</strong></td><td></td><td><strong>₹${userProfit.toFixed(2)}</strong></td></tr></table>`;
+      }
+
+      latestData = {
+        'Buy Price (₹)': buy.toFixed(2),
+        'Sell Price (₹)': sell.toFixed(2),
+        'Total Investment (₹)': investment.toFixed(2),
+        'USDT Bought': usdtQty.toFixed(2),
+        'Profit/USDT (₹)': profitPerUnit.toFixed(2),
+        'Total Profit (₹)': totalProfit.toFixed(2),
+        'Profit % (ROI)': roi.toFixed(2) + '%'
+      };
+
+      mediatorData.forEach(m => {
+        latestData[`Mediator - ${m.name} (₹)`] = m.amount.toFixed(2);
+      });
+      latestData['Your Profit (₹)'] = userProfit.toFixed(2);
+
+      document.getElementById('result').innerHTML = tableHTML;
+    }
+
+    function downloadCSV() {
+      if (!Object.keys(latestData).length) {
+        alert("Calculate profit first!");
+        return;
+      }
+
+      let csv = "Metric,Value\n";
+      for (const key in latestData) {
+        csv += `${key},${latestData[key]}\n`;
+      }
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "usdt_profit_report.csv";
+      link.click();
+    }
+  </script>
+
+</body>
+</html>
